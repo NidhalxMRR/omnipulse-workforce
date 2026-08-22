@@ -1,0 +1,10 @@
+{
+  "name": "omnipulse-workforce-platform",
+  "version": "1.0.0",
+  "description": "Call Center & Remote Workforce Performance Intelligence Platform",
+  "scripts": {
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run dev",
+    "docker:up": "docker compose up --build"
+  }
+}

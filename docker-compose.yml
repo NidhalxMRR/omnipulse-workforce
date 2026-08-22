@@ -1,0 +1,74 @@
+services:
+  # -------------------------------------------------------------
+  # 1. PostgreSQL Database Service (System of Record)
+  # -------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: workforce_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres_secure_password_123}
+      POSTGRES_DB: ${DB_NAME:-workforce_tracker}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/src/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-workforce_tracker}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - workforce_net
+
+  # -------------------------------------------------------------
+  # 2. Realtime Telemetry Ingestion & WebSocket API
+  # -------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: workforce_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: ${PORT:-5000}
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres_secure_password_123@db:5432/workforce_tracker}
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_for_startup_auth_2026}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    ports:
+      - "${PORT:-5000}:5000"
+    networks:
+      - workforce_net
+
+  # -------------------------------------------------------------
+  # 3. Supervisor Real-Time Floor Operations Dashboard
+  # -------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: workforce_frontend
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:5000}
+      - VITE_WS_URL=${VITE_WS_URL:-ws://localhost:5000}
+    ports:
+      - "3000:3000"
+    networks:
+      - workforce_net
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  workforce_net:
+    driver: bridge
